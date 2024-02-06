@@ -1,23 +1,18 @@
-import pymongo
+import mysql.connector
 from flask import request
-from urllib.parse import quote_plus
 
-# Properly escape username and password using quote_plus
-username = 'Geotech'  # Replace with your actual username
-password = '@Locamade12182'  # Replace with your actual password
+# Connect to MySQL database
+conn = mysql.connector.connect(
+    host="db4free.net",
+    user="personaltailr",
+    password="personaltailr",
+    database="personaltailr"
+)
+cursor = conn.cursor()
 
-uri = f'mongodb+srv://{quote_plus(username)}:{quote_plus(password)}@cluster0.r8itkxl.mongodb.net/?retryWrites=true&w=majority'
-
-client = pymongo.MongoClient(uri)
-userdb = client['userdb']
-users = userdb.customers
-
-
-def create_collections():
-    # Check if the collection exists
-    if 'customers' not in userdb.list_collection_names():
-        userdb.create_collection('customers')
-
+def create_tables():
+    # Create 'customers' table if it doesn't exist
+    cursor.execute("CREATE TABLE IF NOT EXISTS customers (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255), email VARCHAR(255), password VARCHAR(255))")
 
 def insert_data():
     if request.method == 'POST':
@@ -25,35 +20,31 @@ def insert_data():
         email = request.form['email']
         password = request.form['pass']
 
-        reg_user = {
-            'name': name,
-            'email': email,
-            'password': password
-        }
+        # Check if email already exists in the database
+        cursor.execute("SELECT * FROM customers WHERE email = %s", (email,))
+        user_data = cursor.fetchone()
 
-        if users.find_one({"email": email}) is None:
-            users.insert_one(reg_user)
+        if not user_data:
+            # Insert new user data into 'customers' table
+            cursor.execute("INSERT INTO customers (name, email, password) VALUES (%s, %s, %s)", (name, email, password))
+            conn.commit()
             return True
         else:
             return False
-
 
 def check_user():
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['pass']
 
-        user = {
-            "email": email,
-            "password": password
-        }
+        # Check if email and password match in the database
+        cursor.execute("SELECT * FROM customers WHERE email = %s AND password = %s", (email, password))
+        user_data = cursor.fetchone()
 
-        user_data = users.find_one(user)
-        if user_data is None:
+        if not user_data:
             return False, ""
         else:
-            return True, user_data["name"]
+            return True, user_data[1]  # Assuming the second column is 'name'
 
-
-# Ensure collections exist before interacting with them
-create_collections()
+# Ensure tables exist before interacting with them
+create_tables()
